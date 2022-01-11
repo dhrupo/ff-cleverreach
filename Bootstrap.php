@@ -39,14 +39,6 @@ class Bootstrap extends IntegrationManager
                         $settings['status'] = true;
                         update_option($this->optionKey, $settings, 'no');
                     }
-                    if(is_wp_error($settings)) {
-                        wp_redirect(admin_url('admin.php?page=fluent_forms_settings#general-cleverreach-settings'));
-
-                        wp_send_json_success([
-                            'message' => __('Your settings has been updated', 'ffcleverreach'),
-                            'status' => false
-                        ], 200);
-                    }
 
                     wp_redirect(admin_url('admin.php?page=fluent_forms_settings#general-cleverreach-settings'));
                     exit();
@@ -83,10 +75,6 @@ class Bootstrap extends IntegrationManager
             'refresh_token' => '',
             'expire_at' => false
         ];
-
-//        if(empty($globalSettings['access_token'])) {
-//            return $globalSettings;
-//        }
 
         return wp_parse_args($globalSettings, $defaults);
     }
