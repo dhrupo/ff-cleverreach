@@ -35,15 +35,23 @@ class Bootstrap extends IntegrationManager
                     $code = sanitize_text_field($_REQUEST['code']);
                     $settings = $this->getGlobalSettings([]);
                     $settings = $client->generateAccessToken($code, $settings);
-
                     if (!is_wp_error($settings)) {
                         $settings['status'] = true;
                         update_option($this->optionKey, $settings, 'no');
                     }
+                    if(is_wp_error($settings)) {
+                        wp_redirect(admin_url('admin.php?page=fluent_forms_settings#general-cleverreach-settings'));
+
+                        wp_send_json_success([
+                            'message' => __('Your settings has been updated', 'ffcleverreach'),
+                            'status' => false
+                        ], 200);
+                    }
 
                     wp_redirect(admin_url('admin.php?page=fluent_forms_settings#general-cleverreach-settings'));
                     exit();
-                } else {
+                }
+                else {
                     $client->redirectToAuthServer();
                 }
                 die();
@@ -62,19 +70,81 @@ class Bootstrap extends IntegrationManager
     public function getGlobalSettings($settings)
     {
         $globalSettings = get_option($this->optionKey);
+
         if (!$globalSettings) {
             $globalSettings = [];
         }
+
         $defaults = [
             'client_id' => '',
             'client_secret' => '',
-            'status' => '',
+            'status' => false,
             'access_token' => '',
             'refresh_token' => '',
             'expire_at' => false
         ];
 
+//        if(empty($globalSettings['access_token'])) {
+//            return $globalSettings;
+//        }
+
         return wp_parse_args($globalSettings, $defaults);
+    }
+
+    public function saveGlobalSettings($settings)
+    {
+        if (empty($settings['client_id']) || empty($settings['client_secret'])) {
+            $integrationSettings = [
+                'client_id' => '',
+                'client_secret' => '',
+                'status' => false,
+                'access_token' => ''
+            ];
+            // Update the details with siteKey & secretKey.
+            update_option($this->optionKey, $integrationSettings, 'no');
+
+            wp_send_json_success([
+                'message' => __('Your settings has been updated', 'ffcleverreach'),
+                'status' => false
+            ], 200);
+        }
+
+        // Verify API key now
+        try {
+            $oldSettings = $this->getGlobalSettings([]);
+            $oldSettings['client_id'] = sanitize_text_field($settings['client_id']);
+            $oldSettings['client_secret'] = sanitize_text_field($settings['client_secret']);
+            $oldSettings['status'] = false;
+            update_option($this->optionKey, $oldSettings, 'no');
+
+            $client = $this->getRemoteClient();
+            $check = $client->checkForClientId();
+            if (is_wp_error($check)) {
+                $integrationSettings = [
+                    'client_id' => '',
+                    'client_secret' => '',
+                    'status' => false,
+                    'access_token' => ''
+                    ];
+                    update_option($this->optionKey, $integrationSettings, 'no');
+                    wp_send_json_error([
+                        'message' => __($check->errors['invalid_client'][0], 'ffcleverreach'),
+                        'status' => false
+                    ], 400);
+                }
+            else {
+                wp_send_json_success([
+                    'message' => __('You are redirect to authenticate', 'ffclevereach'),
+                    'redirect_url' => admin_url('?ff_cleverreach_auth=1')
+                ], 200);
+            }
+
+        } catch (\Exception $exception) {
+            wp_send_json_error([
+                'message' => $exception->getMessage()
+            ], 400);
+        }
+
     }
 
     public function getGlobalFields($fields)
@@ -112,7 +182,6 @@ class Bootstrap extends IntegrationManager
                     'access_token' => '',
                     'refresh_token' => '',
                     'expire_at' => false,
-                    'isDisconnect' => true
                 ],
                 'show_verify' => true
             ]
@@ -138,43 +207,6 @@ class Bootstrap extends IntegrationManager
         </div>
         <?php
         return ob_get_clean();
-    }
-
-    public function saveGlobalSettings($settings)
-    {
-        if (array_key_exists('isDisconnect', $settings)) {
-            $oldSettings = $this->getGlobalSettings([]);
-            $oldSettings['client_id'] = sanitize_text_field($settings['client_id']);
-            $oldSettings['client_secret'] = sanitize_text_field($settings['client_secret']);
-            $oldSettings['access_token'] = sanitize_text_field($settings['access_token']);
-            $oldSettings['refresh_token'] = sanitize_text_field($settings['refresh_token']);
-            $oldSettings['expire_at'] = sanitize_text_field($settings['expire_at']);
-            $oldSettings['status'] = false;
-            // Update the details with siteKey & secretKey.
-            update_option($this->optionKey, $oldSettings, 'no');
-
-            wp_send_json_success([
-                'message' => __('You have been disconnected from clever reach.', 'ffcleverreach'),
-                'status' => false
-            ], 200);
-        }
-        // Verify API key now
-        try {
-            $oldSettings = $this->getGlobalSettings([]);
-            $oldSettings['client_id'] = sanitize_text_field($settings['client_id']);
-            $oldSettings['client_secret'] = sanitize_text_field($settings['client_secret']);
-            $oldSettings['status'] = true;
-
-            update_option($this->optionKey, $oldSettings, 'no');
-            wp_send_json_success([
-                'message' => 'You are redirect to athenticate',
-                'redirect_url' => admin_url('?ff_cleverreach_auth')
-            ], 200);
-        } catch (\Exception $exception) {
-            wp_send_json_error([
-                'message' => $exception->getMessage()
-            ], 400);
-        }
     }
 
     public function pushIntegration($integrations, $formId)

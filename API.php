@@ -16,6 +16,8 @@ class API
 
     protected $clientSecret = null;
 
+    protected $accessToken = null;
+
     protected $callBackUrl = null;
 
     protected $settings = [];
@@ -24,6 +26,7 @@ class API
     {
         $this->clientId = $settings['client_id'];
         $this->clientSecret = $settings['client_secret'];
+        $this->accessToken = $settings['access_token'];
         $this->callBackUrl = admin_url('?ff_cleverreach_auth=1');
     }
 
@@ -33,6 +36,22 @@ class API
 
         wp_redirect($url);
         exit();
+    }
+
+    public function checkForClientId()
+    {
+        $url = 'https://rest.cleverreach.com/oauth/authorize.php?client_id=' . $this->clientId . '&grant=basic&response_type=code&redirect_uri=' . $this->callBackUrl;
+        $response = wp_remote_get($url);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $body = \json_decode($body, true);
+
+        if (isset($body['error_description'])) {
+            return new \WP_Error('invalid_client', $body['error_description']);
+        }
     }
 
     public function generateAccessToken($code, $settings)
@@ -66,7 +85,19 @@ class API
 
     public function makeRequest($url, $bodyArgs, $type = 'GET', $headers = false)
     {
-        $headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        $settings = $this->getApiSettings();
+        if(is_wp_error($settings)) {
+            return $settings;
+        }
+
+        if (!$headers) {
+            $headers = array(
+                "Access-Control-Allow-Origin"=> "*",
+                "Access-Control-Allow-Credentials"=> "true",
+                "Access-Control-Allow-Methods"=> "GET,HEAD,OPTIONS,POST,PUT",
+                "Access-Control-Allow-Headers"=> "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+            );
+        }
 
         $args = [
             'headers' => $headers
@@ -100,62 +131,66 @@ class API
         return $body;
     }
 
-    public function generateAccessKey($token)
+    protected function getApiSettings()
     {
-        $body = [
-            'client_id'     => $this->clientId,
-            'client_secret' => $this->clientSecret,
-            'redirect_uri'  => $this->redirect,
-            'grant_type'    => 'authorization_code',
-            'code'          => $token
-        ];
-        return $this->makeRequest('https://rest.cleverreach.com/oauth/token.php', $body, 'POST');
-    }
+        $this->maybeRefreshToken();
 
-    public function getAccessToken()
-    {
-        $tokens = get_option($this->optionKey);
+        $apiSettings = $this->settings;
 
-        if (!$tokens) {
-            return false;
+        if(!$apiSettings['status'] || !$apiSettings['expire_at']) {
+            return new \WP_Error('invalid', 'API key is invalid');
         }
 
-        if (($tokens['created_at'] + $tokens['expires_in'] - 30) < time()) {
-            // It's expired so we have to re-issue again    
-            $refreshTokens = $this->refreshToken($tokens);
+        return array(
+            'clientId'        => $this->clientId,
+            'clientSecret'     => $this->clientSecret,
+            'access_token' => $this->accessToken,
+            'refresh_token' => $apiSettings['refresh_token'],
+            'expire_at' => $apiSettings['expire_at']
+        );
+    }
 
-            if (!is_wp_error($refreshTokens)) {
-                $tokens['access_token'] = $refreshTokens['access_token'];
-                $tokens['expires_in'] = $refreshTokens['expires_in'];
-                $tokens['created_at'] = time();
-                update_option($this->optionKey, $tokens, 'no');
-            } else {
-                return false;
+    protected function maybeRefreshToken()
+    {
+        $settings = $this->settings;
+        $expireAt = $settings['expire_at'];
+
+        if( $expireAt && $expireAt <= (time() - 30) ) {
+            // we have to regenerate the tokens
+            $response = wp_remote_post('https://rest.cleverreach.com/oauth/token.php', [
+                'body' => [
+                    'client_id'     => $this->clientId,
+                    'client_secret' => $this->clientSecret,
+                    'grant_type'    => 'refresh_token',
+                    'refresh_token' => $settings['refresh_token'],
+                    'redirect_uri'  => $this->callBackUrl
+                ]
+            ]);
+
+            if(is_wp_error($response)) {
+                $settings['status'] = false;
             }
+
+            $body = wp_remote_retrieve_body($response);
+            $body = \json_decode($body, true);
+
+            if(isset($body['error_description'])) {
+                $settings['status'] = false;
+            }
+            $settings['access_token'] = $body['access_token'];
+            $settings['refresh_token'] = $body['refresh_token'];
+            $settings['expire_at'] = time() + intval($body['expires_in']);
+//            $this->settings = $settings;
+            update_option('_fluentform_cleverreach_settings', $settings, 'no');
         }
-
-        return $tokens['access_token'];
     }
-
-    private function refreshToken($tokens)
-    {
-        $args = [
-            'client_id' => $this->clientId,
-            'client_secret' => $this->clientSecret,
-            'refresh_token' => $tokens['refresh_token'],
-            'grant_type' => 'refresh_token'
-        ];
-
-        return $this->makeRequest('https://rest.cleverreach.com/oauth/token.php', $args, 'POST');
-    }
-
 
     public function subscribe($subscriber)
     {
-        $settings = get_option('_fluentform_cleverreach_settings');
-        $token = $settings['access_token'];
+//        $settings = get_option('_fluentform_cleverreach_settings');
+//        $token = $settings['access_token'];
 
-        $response = $this->makeRequest('https://rest.cleverreach.com/groups/'.$subscriber['list_id'].'/receivers', $subscriber, 'POST', ['Authorization' => 'Bearer '.$token]);
+        $response = $this->makeRequest('https://rest.cleverreach.com/groups/'.$subscriber['list_id'].'/receivers', $subscriber, 'POST', ['Authorization' => 'Bearer '.$this->accessToken]);
 
         if ($response) {
             return $response;
