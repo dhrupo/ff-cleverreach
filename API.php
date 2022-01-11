@@ -85,19 +85,7 @@ class API
 
     public function makeRequest($url, $bodyArgs, $type = 'GET', $headers = false)
     {
-        $settings = $this->getApiSettings();
-        if(is_wp_error($settings)) {
-            return $settings;
-        }
-
-        if (!$headers) {
-            $headers = array(
-                "Access-Control-Allow-Origin"=> "*",
-                "Access-Control-Allow-Credentials"=> "true",
-                "Access-Control-Allow-Methods"=> "GET,HEAD,OPTIONS,POST,PUT",
-                "Access-Control-Allow-Headers"=> "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-            );
-        }
+        $headers['Content-type'] = 'application/x-www-form-urlencoded';
 
         $args = [
             'headers' => $headers

@@ -178,10 +178,7 @@ class Bootstrap extends IntegrationManager
                 'data' => [
                     'client_id' => '',
                     'client_secret' => '',
-                    'status' => '',
                     'access_token' => '',
-                    'refresh_token' => '',
-                    'expire_at' => false,
                 ],
                 'show_verify' => true
             ]
@@ -314,7 +311,6 @@ class Bootstrap extends IntegrationManager
             $token = ($settings['access_token']);
             $lists = $client->makeRequest('https://rest.cleverreach.com/groups', null, 'GET',
                 ['Authorization' => 'Bearer ' . $token]);
-
             if (!$lists) {
                 return [];
             }
