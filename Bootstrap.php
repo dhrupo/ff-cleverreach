@@ -294,11 +294,13 @@ class Bootstrap extends IntegrationManager
     protected function getLists()
     {
         $client = $this->getRemoteClient();
-        $settings = get_option('_fluentform_cleverreach_settings');
+        $settings = get_option($this->optionKey);
+
         try {
             $token = ($settings['access_token']);
             $lists = $client->makeRequest('https://rest.cleverreach.com/groups', null, 'GET',
                 ['Authorization' => 'Bearer ' . $token]);
+
             if (!$lists) {
                 return [];
             }
@@ -341,7 +343,7 @@ class Bootstrap extends IntegrationManager
             return false;
         }
 
-        $settings = get_option('_fluentform_cleverreach_settings');
+        $settings = get_option($this->optionKey);
 
         try {
             $token = ($settings['access_token']);
