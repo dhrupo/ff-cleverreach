@@ -5,6 +5,7 @@ namespace FluentFormPro\Integrations\CleverReach;
 use FluentForm\App\Services\Integrations\IntegrationManager;
 use FluentForm\Framework\Foundation\Application;
 use FluentForm\Framework\Helpers\ArrayHelper;
+use WpFluent\Exception;
 
 class Bootstrap extends IntegrationManager
 {
@@ -39,7 +40,6 @@ class Bootstrap extends IntegrationManager
                         $settings['status'] = true;
                         update_option($this->optionKey, $settings, 'no');
                     }
-
                     wp_redirect(admin_url('admin.php?page=fluent_forms_settings#general-cleverreach-settings'));
                     exit();
                 }
@@ -115,15 +115,16 @@ class Bootstrap extends IntegrationManager
                     'access_token' => ''
                     ];
                     update_option($this->optionKey, $integrationSettings, 'no');
+
                     wp_send_json_error([
-                        'message' => __($check->errors['invalid_client'][0], 'ffcleverreach'),
+                        'message' => __($check->errors['invalid_client'][0],'ffclevereach'),
                         'status' => false
                     ], 400);
                 }
             else {
                 wp_send_json_success([
                     'message' => __('You are redirect to authenticate', 'ffclevereach'),
-                    'redirect_url' => admin_url('?ff_cleverreach_auth=1')
+                    'redirect_url' => admin_url('?ff_cleverreach_auth')
                 ], 200);
             }
 
@@ -300,7 +301,6 @@ class Bootstrap extends IntegrationManager
             $token = ($settings['access_token']);
             $lists = $client->makeRequest('https://rest.cleverreach.com/groups', null, 'GET',
                 ['Authorization' => 'Bearer ' . $token]);
-
             if (!$lists) {
                 return [];
             }
@@ -347,8 +347,7 @@ class Bootstrap extends IntegrationManager
 
         try {
             $token = ($settings['access_token']);
-            $lists = $client->makeRequest('https://rest.cleverreach.com/groups/' . $listId . '/attributes/', null,
-                'GET', ['Authorization' => 'Bearer ' . $token]);
+            $lists = $client->makeRequest('https://rest.cleverreach.com/groups/' . $listId . '/attributes/', null,'GET', ['Authorization' => 'Bearer ' . $token]);
 
             if (!$lists) {
                 return false;
@@ -387,7 +386,7 @@ class Bootstrap extends IntegrationManager
         foreach (ArrayHelper::get($feedData, 'other_fields_mapping') as $item) {
             $subscriber['attributes'][$item['label']] = $item['item_value'];
         }
-        $subscriber["global_attributes"] = $subscriber['attributes'];
+//        $subscriber["global_attributes"] = $subscriber['attributes'];
 
         $client = $this->getRemoteClient();
         $response = $client->subscribe($subscriber);
@@ -412,7 +411,7 @@ class Bootstrap extends IntegrationManager
                 'component' => $this->integrationKey,
                 'status' => 'success',
                 'title' => $feed['settings']['name'],
-                'description' => 'Mautic feed has been successfully initialed and pushed data'
+                'description' => 'Clever reach has been successfully initialed and pushed data'
             ]);
         }
     }

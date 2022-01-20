@@ -27,7 +27,7 @@ class API
         $this->clientId = $settings['client_id'];
         $this->clientSecret = $settings['client_secret'];
         $this->accessToken = $settings['access_token'];
-        $this->callBackUrl = admin_url('?ff_cleverreach_auth=1');
+        $this->callBackUrl = admin_url('?ff_cleverreach_auth');
         $this->settings = $settings;
     }
 
@@ -43,6 +43,7 @@ class API
     {
         $url = 'https://rest.cleverreach.com/oauth/authorize.php?client_id=' . $this->clientId . '&grant=basic&response_type=code&redirect_uri=' . $this->callBackUrl;
         $response = wp_remote_get($url);
+
         if (is_wp_error($response)) {
             return $response;
         }
@@ -95,8 +96,8 @@ class API
         }
 
         return [
-            'clientKey'        => $this->clientId,
-            'clientSecret'     => $this->clientSecret,
+            'client_id'        => $this->clientId,
+            'client_secret'     => $this->clientSecret,
             'callback'         => $this->callBackUrl,
             'access_token' => $this->accessToken,
             'refresh_token' => $apiSettings['refresh_token'],
@@ -182,6 +183,11 @@ class API
 
     public function subscribe($subscriber)
     {
+        $settings = $this->getApiSettings();
+        if(is_wp_error($settings)) {
+            return $settings;
+        }
+
         $response = $this->makeRequest('https://rest.cleverreach.com/groups/'.$subscriber['list_id'].'/receivers', $subscriber, 'POST', ['Authorization' => 'Bearer '.$this->accessToken]);
 
         if ($response) {
