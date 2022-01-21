@@ -183,11 +183,6 @@ class API
 
     public function subscribe($subscriber)
     {
-        $settings = $this->getApiSettings();
-        if(is_wp_error($settings)) {
-            return $settings;
-        }
-
         $response = $this->makeRequest('https://rest.cleverreach.com/groups/'.$subscriber['list_id'].'/receivers', $subscriber, 'POST', ['Authorization' => 'Bearer '.$this->accessToken]);
 
         if ($response) {
